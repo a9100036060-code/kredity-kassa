@@ -1,0 +1,1 @@
+# kredity-kassa

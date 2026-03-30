@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#3b82f6">
+
+  <title>Кредиты и Касса</title>
+
+  <!-- PWA настройки -->
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Poppins', sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      overflow-x: hidden;
+      touch-action: manipulation;
+    }
+    body.dark { background: #1a2332; }
+    /* Toast */
+    #toast-container {
+      position: fixed; top: 20px; right: 20px; z-index: 10000;
+      display: flex; flex-direction: column; gap: 12px;
+    }
+    .toast {
+      min-width: 280px; padding: 14px 18px; border-radius: 12px; color: #fff;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+      display: flex; align-items: center; gap: 12px;
+      animation: toastIn 0.3s ease forwards;
+    }
+    .toast.success { background: #10b981; }
+    .toast.error { background: #ef4444; }
+    .toast.warning { background: #f59e0b; }
+    @keyframes toastIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    #sidebar {
+      position: fixed; top: 0; left: -280px; width: 280px; height: 100%;
+      background: #e2e8f0; padding: 20px 15px;
+      transition: left 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+      z-index: 2000; box-shadow: 4px 0 20px rgba(0,0,0,0.25); overflow-y: auto;
+    }
+    body.dark #sidebar { background: #1e293b; color: #d1d5db; }
+    #sidebar.active { left: 0; }
+    #sidebar button {
+      width: 100%; background: none; border: none; color: inherit;
+      padding: 14px 18px; display: flex; align-items: center; gap: 12px;
+      font-size: 16px; border-radius: 12px; margin-bottom: 6px;
+      transition: all 0.3s ease;
+    }
+    #sidebar button:hover { background: rgba(59, 130, 246, 0.15); }
+    #sidebar button.active { background: #3b82f6; color: white; box-shadow: 0 4px 10px rgba(59,130,246,0.3); }
+
+    #mobile-nav {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #e2e8f0; display: flex; justify-content: space-around;
+      padding: 8px 4px 4px; box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+      z-index: 1500; height: 68px; touch-action: pan-y;
+    }
+    body.dark #mobile-nav { background: #1e293b; }
+    #mobile-nav button {
+      background: none; border: none; color: #64748b; font-size: 10px;
+      display: flex; flex-direction: column; align-items: center; gap: 3px;
+      padding: 6px 10px; border-radius: 10px; transition: all 0.2s; min-width: 52px;
+    }
+    #mobile-nav button.active { color: #3b82f6; }
+    #mobile-nav .material-icons { font-size: 26px; }
+
+    #content { padding: 16px 16px 88px 16px; min-height: 100vh; }
+    .tab { display: none; }
+    .tab.active { display: block; }
+    .card { background: #ffffff; border-radius: 18px; padding: 20px; margin-bottom: 20px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); }
+    body.dark .card { background: #25334a; color: #e2e8f0; }
+    h2 { margin-bottom: 18px; font-size: 22px; font-weight: 600; color: #1e40af; }
+    body.dark h2 { color: #60a5fa; }
+    .form-grid { display: grid; gap: 16px; }
+    input, select {
+      width: 100%; padding: 14px 16px; border: 1.5px solid #cbd5e1;
+      border-radius: 12px; font-size: 16px; background: white;
+    }
+    body.dark input, body.dark select {
+      background: #334155; border-color: #475569; color: white;
+    }
+    .btn {
+      width: 100%; padding: 15px; font-size: 17px; font-weight: 600;
+      border: none; border-radius: 12px;
+      background: linear-gradient(90deg, #2563eb, #3b82f6);
+      color: white; cursor: pointer; margin-top: 8px;
+      box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn-secondary { background: #64748b; }
+    .btn-reset { background: linear-gradient(90deg, #dc2626, #ef4444); }
+    .table-container {
+      max-height: 520px; overflow-x: auto; overflow-y: auto;
+      border-radius: 14px; border: 1px solid #e2e8f0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.06); background: white;
+    }
+    body.dark .table-container { border-color: #334155; background: #1e293b; }
+    table { width: 100%; min-width: 580px; border-collapse: collapse; }
+    th, td { padding: 14px 12px; text-align: left; font-size: 15.5px; white-space: nowrap; }
+    th {
+      background: #f8fafc; position: sticky; top: 0; z-index: 10;
+      font-weight: 600; color: #334155;
+    }
+    body.dark th { background: #334155; color: #e2e8f0; }
+    tr:hover { background: #f1f5f9; }
+    body.dark tr:hover { background: #334155; }
+    td { border-bottom: 1px solid #e2e8f0; }
+    body.dark td { border-bottom: 1px solid #334155; }
+    .segmented-control {
+      display: flex; background: #e2e8f0; border-radius: 14px;
+      padding: 5px; margin-bottom: 16px;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    }
+    body.dark .segmented-control { background: #334155; }
+    .segment {
+      flex: 1; padding: 14px; border-radius: 10px; font-size: 16px;
+      font-weight: 600; text-align: center; transition: all 0.3s ease;
+      border: none; background: transparent; color: #64748b;
+    }
+    .segment.active {
+      background: #3b82f6; color: white;
+      box-shadow: 0 4px 12px rgba(59,130,246,0.4);
+    }
+    @media (max-width: 480px) {
+      .card { padding: 18px 14px; border-radius: 16px; }
+      h2 { font-size: 20px; }
+      input, select { font-size: 16px; padding: 13px 14px; }
+      .segment { padding: 13px; font-size: 15.5px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Боковое меню -->
+  <nav id="sidebar">
+    <button class="active" data-tab="add-client"><span class="material-icons">person_add</span><span>Добавить клиента</span></button>
+    <button data-tab="clients"><span class="material-icons">people</span><span>Список клиентов</span></button>
+    <button data-tab="payment-history"><span class="material-icons">history</span><span>История платежей</span></button>
+    <button data-tab="active-loans"><span class="material-icons">account_balance</span><span>Активные кредиты</span></button>
+    <button data-tab="cash-register"><span class="material-icons">point_of_sale</span><span>Касса</span></button>
+    <button data-tab="statistics"><span class="material-icons">bar_chart</span><span>Статистика</span></button>
+    <button data-tab="settings"><span class="material-icons">settings</span><span>Настройки</span></button>
+  </nav>
+
+  <!-- Нижняя панель -->
+  <nav id="mobile-nav">
+    <button data-tab="add-client" class="active"><span class="material-icons">person_add</span><span>Клиент</span></button>
+    <button data-tab="clients"><span class="material-icons">people</span><span>Клиенты</span></button>
+    <button data-tab="active-loans"><span class="material-icons">account_balance</span><span>Кредиты</span></button>
+    <button data-tab="cash-register"><span class="material-icons">point_of_sale</span><span>Касса</span></button>
+    <button data-tab="payment-history"><span class="material-icons">history</span><span>История</span></button>
+    <button data-tab="statistics"><span class="material-icons">bar_chart</span><span>Статистика</span></button>
+    <button data-tab="settings"><span class="material-icons">settings</span><span>Настройки</span></button>
+  </nav>
+
+  <main id="content">
+    <!-- 1. Добавить клиента + Оформить кредит -->
+    <section id="add-client" class="tab active card">
+      <h2>Добавить клиента</h2>
+      <div class="form-grid">
+        <div><label>ФИО клиента</label><input type="text" id="clientName" placeholder="Введите полное имя" autocomplete="off" /></div>
+        <div><label>Телефон</label><input type="tel" id="clientPhone" placeholder="+7XXXXXXXXXX" autocomplete="off" /></div>
+      </div>
+      <button id="addClientBtn" class="btn">Добавить клиента</button>
+      <hr style="margin:25px 0; border-color:#e2e8f0;">
+      <h2>Оформить кредит</h2>
+      <div class="form-grid">
+        <div><label>Клиент</label><select id="clientSelect"></select></div>
+        <div><label>Тип кредита</label>
+          <select id="loanType">
+            <option value="standard">4 недели под 17.5%</option>
+            <option value="weekly9">9 недель под 35%</option>
+          </select>
+        </div>
+        <div><label>Сумма кредита</label><input type="number" id="loanAmount" min="1" placeholder="Введите сумму" /></div>
+        <div><label>Дата выдачи</label><input type="date" id="loanDate" /></div>
+        <div><label>Процентная ставка (%)</label><input type="number" id="loanRate" step="0.1" value="17.5" /></div>
+        <div><label>Количество платежей</label><input type="number" id="loanPayments" min="1" value="4" /></div>
+      </div>
+      <button id="addLoanBtn" class="btn">Оформить кредит</button>
+    </section>
+
+    <!-- 2. Список клиентов -->
+    <section id="clients" class="tab card">
+      <h2>Список клиентов</h2>
+      <div class="import-export">
+        <input type="text" id="searchClients" placeholder="Поиск по ФИО или телефону" style="flex:1;padding:14px 16px;border-radius:12px;border:1.5px solid #cbd5e1;">
+        <button id="exportClientsBtn" class="btn" style="width:auto;min-width:140px;">Экспорт клиентов</button>
+        <input type="file" id="importClientsInput" accept=".csv,.xlsx" style="display:none;" />
+      </div>
+      <div class="table-container">
+        <table>
+          <thead><tr><th>ФИО</th><th>Телефон</th><th style="width:110px;">Действия</th></tr></thead>
+          <tbody id="clientTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 3. История платежей -->
+    <section id="payment-history" class="tab card">
+      <h2>История платежей</h2>
+      <div class="import-export">
+        <button id="exportPaymentsBtn" class="btn" style="width:auto;min-width:160px;">Экспорт истории</button>
+        <input type="file" id="importPaymentsInput" accept=".csv,.xlsx" style="display:none;" />
+      </div>
+      <div class="form-grid" style="grid-template-columns:1fr 1fr; margin-bottom:16px;">
+        <input type="text" id="searchPayments" placeholder="Поиск..." />
+        <select id="filterType">
+          <option value="">Все типы</option>
+          <option value="Выдача кредита">Выдача кредита</option>
+          <option value="Погашение кредита">Погашение кредита</option>
+          <option value="Приход">Приход</option>
+          <option value="Расход">Расход</option>
+        </select>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead><tr><th>Кредит №</th><th>Клиент</th><th>Тип</th><th>Сумма</th><th>Дата и время</th></tr></thead>
+          <tbody id="historyTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 4. Активные кредиты -->
+    <section id="active-loans" class="tab card">
+      <h2>Активные кредиты</h2>
+      <div class="import-export">
+        <button id="exportLoansBtn" class="btn" style="width:auto;min-width:160px;">Экспорт кредитов</button>
+        <input type="file" id="importLoansInput" accept=".csv,.xlsx" style="display:none;" />
+      </div>
+      <input type="text" id="searchLoans" placeholder="Поиск по клиенту или сумме" style="width:100%;margin-bottom:16px;padding:14px 16px;border-radius:12px;border:1.5px solid #cbd5e1;" />
+      <div class="table-container">
+        <table>
+          <thead><tr><th>№</th><th>Клиент</th><th>Сумма</th><th>Остаток</th><th>Дата начала</th><th style="width:110px;">Действия</th></tr></thead>
+          <tbody id="loanTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 5. Касса -->
+    <section id="cash-register" class="tab card">
+      <h2>Касса</h2>
+      <p style="font-size:18px;margin-bottom:18px;"><strong>В кассе:</strong> <span id="cashAmount" style="font-size:22px;color:#10b981;">0</span> руб.</p>
+      <div class="segmented-control">
+        <button id="cashIncomeBtn" class="segment active">Приход</button>
+        <button id="cashExpenseBtn" class="segment">Расход</button>
+      </div>
+      <div class="form-grid">
+        <div><label>Описание операции</label><input type="text" id="cashDescription" placeholder="Например: возврат от клиента" /></div>
+        <div><label>Сумма</label><input type="number" id="cashAmountInput" min="1" placeholder="Введите сумму" /></div>
+      </div>
+      <button id="cashOperationBtn" class="btn">Добавить операцию</button>
+      <h3 style="margin:24px 0 12px;font-size:18px;">История операций</h3>
+      <div class="table-container">
+        <table>
+          <thead><tr><th>Тип</th><th>Описание</th><th>Сумма</th><th>Дата и время</th></tr></thead>
+          <tbody id="cashHistoryBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 6. Статистика -->
+    <section id="statistics" class="tab card">
+      <h2>Статистика</h2>
+      <ul style="list-style:none;font-size:16px;line-height:2.1;">
+        <li>Количество клиентов: <span id="statClients" class="font-semibold">0</span></li>
+        <li>Активных кредитов: <span id="statLoans" class="font-semibold">0</span></li>
+        <li>Сумма активных кредитов: <span id="statTotalLoan" class="font-semibold">0</span> руб.</li>
+        <li>Остаток по кредитам: <span id="statTotalRemaining" class="font-semibold">0</span> руб.</li>
+        <li>Текущая сумма в кассе: <span id="statCash" class="font-semibold">0</span> руб.</li>
+      </ul>
+    </section>
+
+    <!-- 7. Настройки -->
+    <section id="settings" class="tab card">
+      <h2>Настройки</h2>
+      <div style="display:grid;grid-template-columns:1fr;gap:16px;">
+        <div class="card" style="padding:18px;background:#f8fafc;">
+          <h3>Тема приложения</h3>
+          <button id="themeToggleBtn" class="btn" style="margin-top:12px;">Переключить тему</button>
+        </div>
+        <div class="card" style="padding:18px;background:#f8fafc;">
+          <h3>Управление данными</h3>
+          <button id="resetCashOnlyBtn" class="btn btn-reset" style="margin:8px 0;">Обнулить только кассу</button>
+          <button id="resetDatabaseBtn" class="btn btn-reset" style="margin:8px 0;">Обнулить всю базу</button>
+        </div>
+        <div class="card" style="padding:18px;background:#f8fafc;">
+          <h3>Резервное копирование</h3>
+          <button id="exportFullBackupBtn" class="btn" style="margin:8px 0;">Экспорт всей базы (JSON)</button>
+          <label class="btn" style="margin:8px 0;text-align:center;cursor:pointer;">
+            Импорт базы (JSON)
+            <input type="file" id="importFullBackupInput" accept=".json" style="display:none;">
+          </label>
+        </div>
+        <div class="card" style="padding:18px;background:#f8fafc;">
+          <h3>Ежедневные напоминания о платежах</h3>
+          <div style="margin:12px 0;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+              <input type="checkbox" id="enableReminders" style="width:auto;">
+              <span>Включить push-напоминания</span>
+            </label>
+          </div>
+          <div style="margin:12px 0;">
+            <label>Время напоминания</label>
+            <input type="time" id="reminderTime" value="09:00" style="width:100%;padding:12px;border-radius:12px;border:1.5px solid #cbd5e1;">
+          </div>
+          <button id="subscribePushBtn" class="btn">Подписаться на уведомления</button>
+          <p id="pushStatus" style="margin-top:8px;font-size:14px;color:#64748b;"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Модальные окна -->
+  <div id="paymentModal" class="modal-backdrop" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:3000;">
+    <div class="card" style="max-width:420px;width:92%;padding:24px;">
+      <button id="closePaymentModal" style="position:absolute;top:12px;right:16px;font-size:28px;background:none;border:none;color:#64748b;">×</button>
+      <h3>Внести платёж</h3>
+      <div class="form-grid">
+        <div><label>Сумма платежа</label><input type="number" id="paymentAmount" min="1" /></div>
+        <div><label>Дата платежа</label><input type="date" id="paymentDate" /></div>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:24px;">
+        <button id="confirmPayment" class="btn">Внести платёж</button>
+        <button id="cancelPayment" class="btn btn-secondary">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="editClientModal" class="modal-backdrop" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:3000;">
+    <div class="card" style="max-width:420px;width:92%;padding:24px;">
+      <button id="closeEditClientModal" style="position:absolute;top:12px;right:16px;font-size:28px;background:none;border:none;color:#64748b;">×</button>
+      <h3>Редактировать клиента</h3>
+      <div class="form-grid">
+        <div><label>ФИО клиента</label><input type="text" id="editClientName" /></div>
+        <div><label>Телефон</label><input type="tel" id="editClientPhone" /></div>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:24px;">
+        <button id="confirmEditClient" class="btn">Сохранить</button>
+        <button id="cancelEditClient" class="btn btn-secondary">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="scheduleModal" class="modal-backdrop" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;z-index:3000;">
+    <div class="card" style="max-width:460px;width:92%;padding:24px;">
+      <button id="closeScheduleModal" style="position:absolute;top:12px;right:16px;font-size:28px;background:none;border:none;color:#64748b;">×</button>
+      <h3>График платежей</h3>
+      <div class="table-container" style="max-height:420px;margin-bottom:16px;">
+        <table>
+          <thead><tr><th>№</th><th>Дата</th><th>Сумма</th><th>Статус</th></tr></thead>
+          <tbody id="scheduleTableBody"></tbody>
+        </table>
+      </div>
+      <p style="margin-bottom:16px;">Кредит заканчивается: <span id="loanEndDate" style="font-weight:600;"></span></p>
+      <div style="display:flex;gap:12px;">
+        <button id="copyScheduleBtn" class="btn">📋 Скопировать график</button>
+        <button id="closeScheduleBtn" class="btn btn-secondary">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast-container"></div>
+
+  <script>
+    // ==================== SERVICE WORKER ДЛЯ АВТОНОМНОЙ РАБОТЫ ====================
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js')
+          .then(reg => console.log('✅ Service Worker зарегистрирован — приложение работает полностью автономно'))
+          .catch(err => console.log('Ошибка регистрации SW:', err));
+      });
+    }
+
+    // ==================== УТИЛИТЫ ====================
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.innerHTML = `<span class="material-icons">${type === 'success' ? 'check_circle' : type === 'error' ? 'error' : 'warning'}</span><span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 3200);
+    }
+
+    // ==================== ДАННЫЕ ====================
+    let clients = [], loans = [], payments = [], cashOperations = [];
+    let currentPaymentLoanId = null, currentEditClientId = null, currentScheduleLoanId = null;
+
+    function loadData() {
+      clients = JSON.parse(localStorage.getItem('clients') || '[]');
+      loans = JSON.parse(localStorage.getItem('loans') || '[]');
+      payments = JSON.parse(localStorage.getItem('payments') || '[]');
+      cashOperations = JSON.parse(localStorage.getItem('cashOperations') || '[]');
+    }
+
+    function saveData() {
+      localStorage.setItem('clients', JSON.stringify(clients));
+      localStorage.setItem('loans', JSON.stringify(loans));
+      localStorage.setItem('payments', JSON.stringify(payments));
+      localStorage.setItem('cashOperations', JSON.stringify(cashOperations));
+    }
+
+    function saveAndRefresh() {
+      saveData();
+      refreshAll();
+    }
+
+    // ==================== BACKUP ====================
+    function exportFullBackup() {
+      const backup = { version: "1.9", date: new Date().toISOString(), clients, loans, payments, cashOperations };
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `credit_backup_${new Date().toISOString().slice(0,10)}.json`;
+      a.click(); URL.revokeObjectURL(url);
+      showToast('База экспортирована', 'success');
+    }
+
+    function importFullBackup(file) {
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const data = JSON.parse(e.target.result);
+          if (confirm('Текущие данные будут заменены. Продолжить?')) {
+            clients = data.clients || [];
+            loans = data.loans || [];
+            payments = data.payments || [];
+            cashOperations = data.cashOperations || [];
+            saveData();
+            refreshAll();
+            showToast('База импортирована', 'success');
+          }
+        } catch (err) { showToast('Ошибка чтения файла', 'error'); }
+      };
+      reader.readAsText(file);
+    }
+
+    function exportPayments() {
+      if (payments.length === 0) return showToast('Нет данных для экспорта', 'warning');
+      let csv = "\uFEFFКредит №,Клиент,Тип,Сумма,Дата и время\n";
+      payments.forEach(p => {
+        const client = clients.find(c => c.id === p.clientId);
+        const clientName = client ? client.name.replace(/,/g, ' ') : 'Неизвестный';
+        const dt = new Date(p.datetime).toLocaleString('ru-RU').replace(/,/g, ' ');
+        csv += `${p.loanId},"${clientName}",${p.type},${p.amount},"${dt}"\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `payments_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+      URL.revokeObjectURL(url);
+      showToast('История экспортирована', 'success');
+    }
+
+    // ==================== РЕНДЕР ====================
+    function updateClientSelect() {
+      const sel = document.getElementById('clientSelect');
+      sel.innerHTML = '<option value="">Выберите клиента</option>';
+      clients.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id; opt.textContent = c.name;
+        sel.appendChild(opt);
+      });
+    }
+
+    function renderClients() {
+      const tbody = document.getElementById('clientTableBody');
+      tbody.innerHTML = '';
+      clients.forEach(client => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${client.name}</td>
+          <td>${client.phone || '-'}</td>
+          <td>
+            <button class="editClientBtn" data-id="${client.id}" style="background:#3b82f6;color:white;border:none;padding:6px 10px;border-radius:8px;margin-right:4px;">✏️</button>
+            <button class="deleteClientBtn" data-id="${client.id}" style="background:#ef4444;color:white;border:none;padding:6px 10px;border-radius:8px;">🗑</button>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+      document.querySelectorAll('.editClientBtn').forEach(b => b.addEventListener('click', e => openEditClientModal(e.currentTarget.dataset.id)));
+      document.querySelectorAll('.deleteClientBtn').forEach(b => b.addEventListener('click', e => deleteClient(e.currentTarget.dataset.id)));
+    }
+
+    function renderLoans() {
+      const query = (document.getElementById('searchLoans').value || '').toLowerCase();
+      const tbody = document.getElementById('loanTableBody');
+      tbody.innerHTML = '';
+      let index = 0;
+      loans.filter(l => l.remaining > 0).filter(loan => {
+        const client = clients.find(c => c.id === loan.clientId);
+        const name = client ? client.name.toLowerCase() : '';
+        return name.includes(query) || loan.amount.toString().includes(query) || loan.remaining.toString().includes(query) || loan.startDate.includes(query);
+      }).forEach(loan => {
+        const client = clients.find(c => c.id === loan.clientId);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${++index}</td>
+          <td>${client ? client.name : '—'}</td>
+          <td>${loan.amount.toFixed(2)}</td>
+          <td>${loan.remaining.toFixed(2)}</td>
+          <td>${loan.startDate}</td>
+          <td>
+            <button class="payBtn" data-id="${loan.id}" style="background:#10b981;color:white;border:none;padding:6px 10px;border-radius:8px;margin-right:4px;">💰</button>
+            <button class="scheduleBtn" data-id="${loan.id}" style="background:#8b5cf6;color:white;border:none;padding:6px 10px;border-radius:8px;">📅</button>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+      document.querySelectorAll('.payBtn').forEach(b => b.addEventListener('click', e => openPaymentModal(e.currentTarget.dataset.id)));
+      document.querySelectorAll('.scheduleBtn').forEach(b => b.addEventListener('click', e => openScheduleModal(e.currentTarget.dataset.id)));
+    }
+
+    function renderPayments() {
+      const query = (document.getElementById('searchPayments').value || '').toLowerCase();
+      const filter = document.getElementById('filterType').value;
+      const tbody = document.getElementById('historyTableBody');
+      tbody.innerHTML = '';
+      payments.filter(p => {
+        const client = clients.find(c => c.id === p.clientId);
+        const name = client ? client.name.toLowerCase() : '';
+        const matches = name.includes(query) || p.type.toLowerCase().includes(query) || p.amount.toString().includes(query) || new Date(p.datetime).toLocaleString().toLowerCase().includes(query);
+        return matches && (!filter || p.type === filter);
+      }).forEach(payment => {
+        const client = clients.find(c => c.id === payment.clientId);
+        const dt = new Date(payment.datetime);
+        const tr = document.createElement('tr');
+        if (payment.type === 'Выдача кредита') tr.className = 'loan-issue';
+        else if (payment.type === 'Погашение кредита') tr.className = 'income';
+        tr.innerHTML = `
+          <td>${payment.loanId}</td>
+          <td>${client ? client.name : '—'}</td>
+          <td>${payment.type}</td>
+          <td>${payment.amount.toFixed(2)}</td>
+          <td>${dt.toLocaleString('ru-RU')}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function renderCashHistory() {
+      const tbody = document.getElementById('cashHistoryBody');
+      tbody.innerHTML = '';
+      cashOperations.forEach(op => {
+        const tr = document.createElement('tr');
+        tr.className = op.type === 'income' ? 'income' : 'expense';
+        const dt = new Date(op.datetime);
+        tr.innerHTML = `
+          <td>${op.type === 'income' ? 'Приход' : 'Расход'}</td>
+          <td>${op.description}</td>
+          <td>${op.amount.toFixed(2)}</td>
+          <td>${dt.toLocaleString('ru-RU')}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function updateStatistics() {
+      document.getElementById('statClients').textContent = clients.length;
+      document.getElementById('statLoans').textContent = loans.filter(l => l.remaining > 0).length;
+      const activeLoans = loans.filter(l => l.remaining > 0);
+      document.getElementById('statTotalLoan').textContent = activeLoans.reduce((s, l) => s + l.amount, 0).toFixed(2);
+      document.getElementById('statTotalRemaining').textContent = loans.reduce((s, l) => s + l.remaining, 0).toFixed(2);
+      const cash = cashOperations.reduce((s, op) => s + (op.type === 'income' ? op.amount : -op.amount), 0);
+      document.getElementById('statCash').textContent = cash.toFixed(2);
+      document.getElementById('cashAmount').textContent = cash.toFixed(2);
+    }
+
+    function refreshAll() {
+      updateClientSelect();
+      renderClients();
+      renderLoans();
+      renderPayments();
+      renderCashHistory();
+      updateStatistics();
+    }
+
+    // ==================== ОСНОВНЫЕ ФУНКЦИИ ====================
+    function resetCashOnly() {
+      if (confirm('Обнулить только кассу?')) {
+        cashOperations = [];
+        saveData();
+        renderCashHistory();
+        updateStatistics();
+        showToast('Касса обнулена', 'success');
+      }
+    }
+
+    function resetDatabase() {
+      if (!confirm('ВНИМАНИЕ! Вся база будет удалена. Продолжить?')) return;
+      localStorage.clear();
+      clients = []; loans = []; payments = []; cashOperations = [];
+      refreshAll();
+      showToast('База полностью обнулена', 'success');
+    }
+
+    function openEditClientModal(id) {
+      currentEditClientId = id;
+      const client = clients.find(c => c.id === id);
+      if (!client) return;
+      document.getElementById('editClientName').value = client.name;
+      document.getElementById('editClientPhone').value = client.phone || '';
+      document.getElementById('editClientModal').style.display = 'flex';
+    }
+
+    function deleteClient(id) {
+      if (loans.some(l => l.clientId === id && l.remaining > 0)) return showToast('Нельзя удалить клиента с активными кредитами', 'error');
+      if (confirm('Удалить клиента?')) {
+        clients = clients.filter(c => c.id !== id);
+        saveAndRefresh();
+        showToast('Клиент удалён', 'success');
+      }
+    }
+
+    function openPaymentModal(loanId) {
+      currentPaymentLoanId = loanId;
+      const loan = loans.find(l => l.id === loanId);
+      if (!loan) return;
+      const next = loan.schedule ? loan.schedule.find(s => !s.paid) : null;
+      document.getElementById('paymentAmount').value = next ? next.amount.toFixed(2) : loan.remaining.toFixed(2);
+      document.getElementById('paymentDate').valueAsDate = new Date();
+      document.getElementById('paymentModal').style.display = 'flex';
+    }
+
+    function openScheduleModal(loanId) {
+      currentScheduleLoanId = loanId;
+      const loan = loans.find(l => l.id === loanId);
+      if (!loan) return;
+      const tbody = document.getElementById('scheduleTableBody');
+      tbody.innerHTML = '';
+      if (loan.schedule) {
+        loan.schedule.forEach((s, i) => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td>${i+1}</td><td>${s.dueDate}</td><td>${s.amount.toFixed(2)}</td><td style="color:${s.paid?'#10b981':'#f59e0b'}">${s.paid?'✅ Оплачено':'⏳ Ожидается'}</td>`;
+          tbody.appendChild(tr);
+        });
+        document.getElementById('loanEndDate').textContent = loan.schedule[loan.schedule.length-1].dueDate;
+      }
+      document.getElementById('scheduleModal').style.display = 'flex';
+      document.getElementById('copyScheduleBtn').onclick = () => copyScheduleToClipboard(loan);
+    }
+
+    function copyScheduleToClipboard(loan) {
+      const client = clients.find(c => c.id === loan.clientId)?.name || '—';
+      let text = `График платежей — Кредит №${loan.id}\nКлиент: ${client}\n\n№\tДата\tСумма\tСтатус\n`;
+      loan.schedule.forEach((s,i) => text += `${i+1}\t${s.dueDate}\t${s.amount.toFixed(2)}\t${s.paid?'Оплачено':'Ожидается'}\n`);
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copyScheduleBtn');
+        const orig = btn.textContent;
+        btn.textContent = '✅ Скопировано!';
+        setTimeout(() => btn.textContent = orig, 1800);
+      });
+    }
+
+    // ==================== СВАЙПЫ ====================
+    const tabOrder = ['add-client', 'clients', 'payment-history', 'active-loans', 'cash-register', 'statistics', 'settings'];
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      document.querySelectorAll('#sidebar button, #mobile-nav button').forEach(b => {
+        b.classList.toggle('active', b.dataset.tab === tabId);
+      });
+    }
+
+    function enableSwipeOnBottomNav() {
+      let startX = 0;
+      const mobileNav = document.getElementById('mobile-nav');
+      mobileNav.addEventListener('touchstart', e => { startX = e.changedTouches[0].screenX; }, { passive: true });
+      mobileNav.addEventListener('touchend', e => {
+        const endX = e.changedTouches[0].screenX;
+        const diff = startX - endX;
+        if (Math.abs(diff) < 70) return;
+        const activeTab = document.querySelector('.tab.active').id;
+        let currentIndex = tabOrder.indexOf(activeTab);
+        if (diff > 0) currentIndex = (currentIndex + 1) % tabOrder.length;
+        else currentIndex = (currentIndex - 1 + tabOrder.length) % tabOrder.length;
+        switchTab(tabOrder[currentIndex]);
+      }, { passive: true });
+    }
+
+    // ==================== PUSH-УВЕДОМЛЕНИЯ ====================
+    let reminderEnabled = localStorage.getItem('reminderEnabled') === 'true';
+    let reminderTime = localStorage.getItem('reminderTime') || '09:00';
+    let reminderInterval = null;
+
+    function supportsNotifications() {
+      return 'Notification' in window;
+    }
+
+    function getTodayPayments() {
+      const today = new Date().toISOString().split('T')[0];
+      const result = [];
+      for (const loan of loans) {
+        if (loan.remaining <= 0 || !loan.schedule) continue;
+        const unpaid = loan.schedule.filter(s => !s.paid && s.dueDate === today);
+        if (unpaid.length > 0) {
+          const client = clients.find(c => c.id === loan.clientId);
+          result.push({
+            clientName: client ? client.name : 'Неизвестный',
+            amount: unpaid.reduce((sum, s) => sum + s.amount, 0).toFixed(0)
+          });
+        }
+      }
+      return result;
+    }
+
+    function showReminderNotification() {
+      const payments = getTodayPayments();
+      const body = payments.length === 0
+        ? "Сегодня платежей нет. Хорошего дня!"
+        : `Сегодня платят ${payments.length} клиент(ов):\n` + payments.map(p => `• ${p.clientName} — ${p.amount} ₽`).join('\n');
+      if (Notification.permission === 'granted') {
+        new Notification('📅 Напоминание о платежах', { body: body });
+      }
+    }
+
+    function startReminderScheduler() {
+      if (reminderInterval) clearInterval(reminderInterval);
+      reminderInterval = setInterval(() => {
+        if (!reminderEnabled) return;
+        const now = new Date();
+        const [h, m] = reminderTime.split(':').map(Number);
+        if (now.getHours() === h && Math.abs(now.getMinutes() - m) <= 2) {
+          showReminderNotification();
+        }
+      }, 60000);
+    }
+
+    // ==================== ЗАПУСК ====================
+    window.onload = () => {
+      loadData();
+      document.getElementById('loanDate').value = new Date().toISOString().split('T')[0];
+      refreshAll();
+
+      document.querySelectorAll('[data-tab]').forEach(btn => {
+        btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+      });
+
+      enableSwipeOnBottomNav();
+
+      // Касса
+      let currentCashType = 'income';
+      document.getElementById('cashIncomeBtn').addEventListener('click', () => {
+        document.getElementById('cashIncomeBtn').classList.add('active');
+        document.getElementById('cashExpenseBtn').classList.remove('active');
+        currentCashType = 'income';
+      });
+      document.getElementById('cashExpenseBtn').addEventListener('click', () => {
+        document.getElementById('cashExpenseBtn').classList.add('active');
+        document.getElementById('cashIncomeBtn').classList.remove('active');
+        currentCashType = 'expense';
+      });
+
+      document.getElementById('cashOperationBtn').addEventListener('click', () => {
+        const desc = document.getElementById('cashDescription').value.trim();
+        const amount = parseFloat(document.getElementById('cashAmountInput').value);
+        if (!desc || !amount) return showToast('Заполните поля', 'error');
+        cashOperations.push({
+          id: Date.now().toString(), type: currentCashType, amount, description: desc, datetime: new Date().toISOString()
+        });
+        document.getElementById('cashDescription').value = '';
+        document.getElementById('cashAmountInput').value = '';
+        renderCashHistory();
+        saveData();
+        updateStatistics();
+        showToast('Операция добавлена', 'success');
+      });
+
+      // Обнуление
+      document.getElementById('resetCashOnlyBtn').addEventListener('click', resetCashOnly);
+      document.getElementById('resetDatabaseBtn').addEventListener('click', resetDatabase);
+
+      // Тема
+      const themeBtn = document.getElementById('themeToggleBtn');
+      themeBtn.addEventListener('click', () => {
+        document.body.classList.toggle('dark');
+        const isDark = document.body.classList.contains('dark');
+        themeBtn.textContent = isDark ? 'Светлая тема' : 'Тёмная тема';
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      });
+      if (localStorage.getItem('theme') === 'dark') {
+        document.body.classList.add('dark');
+        themeBtn.textContent = 'Светлая тема';
+      }
+
+      // Добавление клиента
+      document.getElementById('addClientBtn').addEventListener('click', () => {
+        const name = document.getElementById('clientName').value.trim();
+        if (!name) return showToast('Введите имя клиента', 'error');
+        clients.push({ id: Date.now().toString(), name, phone: document.getElementById('clientPhone').value.trim() });
+        document.getElementById('clientName').value = '';
+        document.getElementById('clientPhone').value = '';
+        saveAndRefresh();
+        showToast('Клиент добавлен', 'success');
+      });
+
+      // Смена типа кредита
+      document.getElementById('loanType').addEventListener('change', () => {
+        const type = document.getElementById('loanType').value;
+        const rate = document.getElementById('loanRate');
+        const payments = document.getElementById('loanPayments');
+        if (type === 'weekly9') {
+          rate.value = 35; rate.disabled = true;
+          payments.value = 9; payments.disabled = true;
+        } else {
+          rate.value = 17.5; rate.disabled = false;
+          payments.value = 4; payments.disabled = false;
+        }
+      });
+
+      // Оформление кредита
+      document.getElementById('addLoanBtn').addEventListener('click', () => {
+        const clientId = document.getElementById('clientSelect').value;
+        const type = document.getElementById('loanType').value;
+        const amount = parseFloat(document.getElementById('loanAmount').value);
+        const date = document.getElementById('loanDate').value;
+        const rate = parseFloat(document.getElementById('loanRate').value);
+        const paymentsCount = parseInt(document.getElementById('loanPayments').value);
+
+        if (!clientId || !amount || !date) return showToast('Заполните все поля', 'error');
+
+        const id = Date.now().toString();
+        const interest = amount * (rate / 100);
+        const total = amount + interest;
+        let remaining = amount;
+        let schedule = [];
+        let currentDate = new Date(date);
+
+        for (let i = 0; i < paymentsCount; i++) {
+          schedule.push({
+            dueDate: currentDate.toISOString().slice(0,10),
+            amount: type === 'weekly9' ? total / paymentsCount : amount / paymentsCount,
+            paid: false
+          });
+          currentDate.setDate(currentDate.getDate() + 7);
+        }
+
+        if (type === 'weekly9') {
+          const first = schedule[0].amount;
+          schedule[0].paid = true;
+          payments.push({id: Date.now().toString(), loanId: id, clientId, type: 'Погашение кредита', amount: first, datetime: new Date().toISOString()});
+          cashOperations.push({id: Date.now().toString(), type: 'income', amount: first, description: `Первый платёж №${id}`, datetime: new Date().toISOString()});
+          remaining = total - first;
+        } else {
+          payments.push({id: Date.now().toString(), loanId: id, clientId, type: 'Выдача кредита', amount: interest, datetime: new Date().toISOString()});
+          cashOperations.push({id: Date.now().toString(), type: 'income', amount: interest, description: `Проценты по кредиту №${id}`, datetime: new Date().toISOString()});
+        }
+
+        loans.push({ id, clientId, type, amount, total, remaining, startDate: date, rate, paymentsCount, schedule });
+        document.getElementById('loanAmount').value = '';
+        saveAndRefresh();
+        showToast(`Кредит №${id} оформлен!`, 'success');
+      });
+
+      // Внесение платежа
+      document.getElementById('confirmPayment').addEventListener('click', () => {
+        const amount = parseFloat(document.getElementById('paymentAmount').value);
+        const date = document.getElementById('paymentDate').value;
+        const loan = loans.find(l => l.id === currentPaymentLoanId);
+        if (!amount || !loan) return showToast('Ошибка', 'error');
+        if (amount > loan.remaining) return showToast('Сумма больше остатка', 'error');
+
+        let rem = amount;
+        for (let s of loan.schedule || []) {
+          if (!s.paid && rem > 0) {
+            if (rem >= s.amount) {
+              s.paid = true;
+              rem -= s.amount;
+            } else {
+              s.amount -= rem;
+              rem = 0;
+            }
+          }
+        }
+        loan.remaining -= amount;
+        if (loan.remaining < 0.01) loan.remaining = 0;
+
+        payments.push({id: Date.now().toString(), loanId: loan.id, clientId: loan.clientId, type: 'Погашение кредита', amount, datetime: new Date(date).toISOString()});
+        cashOperations.push({id: Date.now().toString(), type: 'income', amount, description: `Платёж по кредиту №${loan.id}`, datetime: new Date().toISOString()});
+
+        saveAndRefresh();
+        document.getElementById('paymentModal').style.display = 'none';
+        showToast('Платёж внесён', 'success');
+      });
+
+      // Закрытие модалок
+      document.getElementById('closePaymentModal').addEventListener('click', () => document.getElementById('paymentModal').style.display = 'none');
+      document.getElementById('cancelPayment').addEventListener('click', () => document.getElementById('paymentModal').style.display = 'none');
+      document.getElementById('closeEditClientModal').addEventListener('click', () => document.getElementById('editClientModal').style.display = 'none');
+      document.getElementById('cancelEditClient').addEventListener('click', () => document.getElementById('editClientModal').style.display = 'none');
+      document.getElementById('closeScheduleModal').addEventListener('click', () => document.getElementById('scheduleModal').style.display = 'none');
+      document.getElementById('closeScheduleBtn').addEventListener('click', () => document.getElementById('scheduleModal').style.display = 'none');
+
+      // Поиск
+      document.getElementById('searchPayments').addEventListener('input', renderPayments);
+      document.getElementById('filterType').addEventListener('change', renderPayments);
+      document.getElementById('searchLoans').addEventListener('input', renderLoans);
+
+      // Backup
+      document.getElementById('exportFullBackupBtn').addEventListener('click', exportFullBackup);
+      document.getElementById('importFullBackupInput').addEventListener('change', e => e.target.files[0] && importFullBackup(e.target.files[0]));
+      document.getElementById('exportPaymentsBtn').addEventListener('click', exportPayments);
+
+      // Push-уведомления
+      const enableRemindersCheck = document.getElementById('enableReminders');
+      const reminderTimeInput = document.getElementById('reminderTime');
+      const subscribeBtn = document.getElementById('subscribePushBtn');
+      const pushStatus = document.getElementById('pushStatus');
+
+      enableRemindersCheck.checked = reminderEnabled;
+      reminderTimeInput.value = reminderTime;
+
+      enableRemindersCheck.addEventListener('change', () => {
+        reminderEnabled = enableRemindersCheck.checked;
+        localStorage.setItem('reminderEnabled', reminderEnabled);
+        if (reminderEnabled) startReminderScheduler();
+      });
+
+      reminderTimeInput.addEventListener('change', () => {
+        reminderTime = reminderTimeInput.value;
+        localStorage.setItem('reminderTime', reminderTime);
+      });
+
+      subscribeBtn.addEventListener('click', async () => {
+        if (!supportsNotifications()) {
+          return showToast('Ваш браузер не поддерживает уведомления.<br>Установите приложение на главный экран.', 'warning');
+        }
+        let permission = Notification.permission;
+        if (permission === 'default') permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          pushStatus.textContent = '✅ Уведомления разрешены';
+          showToast('Уведомления подключены!', 'success');
+        } else {
+          pushStatus.textContent = '❌ Уведомления запрещены';
+        }
+      });
+
+      if (reminderEnabled && supportsNotifications() && Notification.permission === 'granted') {
+        startReminderScheduler();
+      }
+
+      showToast('✅ Приложение готово к использованию! Работает автономно.', 'success');
+    };
+  </script>
+</body>
+</html>
